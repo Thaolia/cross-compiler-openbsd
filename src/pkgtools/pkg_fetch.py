@@ -22,6 +22,7 @@ import signify  # noqa: E402
 SRC = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 KEYDIR = os.path.join(SRC, "keys")
 DEFAULT_MIRROR = "https://cdn.openbsd.org/pub/OpenBSD"
+LIB_DIRS = ("usr/lib", "usr/X11R6/lib", "usr/local/lib")
 KEY_COMMENT_RE = re.compile(rb"^untrusted comment: verify with (openbsd-\d+-pkg)\.pub$")
 
 
@@ -113,6 +114,25 @@ class Fetcher:
             raise FetchError(f"{name}: {e}") from None
         return data
 
+    def check_wantlibs(self, name, plist):
+        """Fail early, with the reason, when a library the package links against is absent from the sysroot."""
+        missing = []
+        for kw, arg in plist:
+            if kw != "wantlib" or "/" in arg:
+                continue
+            stem, _, version = arg.rpartition(".")
+            stem, _, major = stem.rpartition(".")
+            if not stem or not major.isdigit():
+                continue
+            prefix = f"lib{stem}.so.{major}."
+            if not any(os.path.isdir(d) and any(f.startswith(prefix) for f in os.listdir(d))
+                       for d in (os.path.join(self.sysroot, s) for s in LIB_DIRS)):
+                missing.append(arg)
+        if missing:
+            raise FetchError(f"{name} needs libraries missing from the sysroot: {', '.join(missing)} "
+                             "(X11/GL libraries come from the xbase set: fetch-sysroot.sh <flavor> <dir> "
+                             "base comp xbase)")
+
     def install(self, wanted, seen):
         name = self.resolve(wanted)
         if name in seen or os.path.isdir(os.path.join(self.dbdir, name)):
@@ -180,6 +200,7 @@ class Fetcher:
             else:
                 raise FetchError(f"{name}: unsupported member type for {member.name}")
 
+        self.check_wantlibs(name, plist)
         regdir = os.path.join(self.dbdir, name)
         os.makedirs(regdir)
         with open(os.path.join(regdir, "+CONTENTS"), "w") as f:

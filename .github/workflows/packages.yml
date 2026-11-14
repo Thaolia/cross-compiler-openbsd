@@ -10,6 +10,8 @@ on:
   push:
     branches: [main]
     tags: ["v*"]
+    # A change to the image's inputs builds the image first; workflow_run below then runs this workflow on it.
+    paths-ignore: [docker/**, src/**, .github/workflows/image.yml]
   pull_request:
   workflow_dispatch:
   # Rebuild the examples with each new toolchain image (the push that changes src/ starts both workflows at once).

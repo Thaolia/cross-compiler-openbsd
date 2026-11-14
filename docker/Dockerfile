@@ -5,6 +5,8 @@ FROM debian:trixie-slim
 
 ARG LLVM_VERSION=21
 ARG OPENBSD_FLAVOR=8.0
+# xbase holds the X11/Mesa headers and libraries that SDL2, GL and other GUI packages link against.
+ARG OPENBSD_SETS="base comp xbase"
 ARG OPENBSD_MIRROR=https://cdn.openbsd.org/pub/OpenBSD
 
 RUN apt-get update \
@@ -27,7 +29,7 @@ ENV OPENBSD_LLVM_BIN=/usr/lib/llvm-${LLVM_VERSION}/bin \
 COPY src /tmp/openbsd-cross-src
 RUN /tmp/openbsd-cross-src/wrappers/install.sh /opt/openbsd-cross ${OPENBSD_FLAVOR} \
  && OPENBSD_MIRROR=${OPENBSD_MIRROR} CACHE_DIR=/tmp/sets \
-      openbsd-fetch-sysroot ${OPENBSD_FLAVOR} /opt/openbsd-cross/sysroot/${OPENBSD_FLAVOR} \
+      openbsd-fetch-sysroot ${OPENBSD_FLAVOR} /opt/openbsd-cross/sysroot/${OPENBSD_FLAVOR} ${OPENBSD_SETS} \
  && rm -rf /tmp/sets /tmp/openbsd-cross-src \
  && x86_64-unknown-openbsd${OPENBSD_FLAVOR}-cc --version
 
