@@ -1,0 +1,20 @@
+# config.site for autoconf cross builds targeting OpenBSD/amd64.
+#   CONFIG_SITE=<prefix>/share/openbsd-cross/config.site \
+#   ./configure --host=x86_64-unknown-openbsd8.0 --prefix=/usr/local
+# With --host matching the wrapper names, configure finds <host>-cc, <host>-ar, ...
+# Answers below are run-time checks configure cannot perform when cross-compiling.
+
+: ${ac_cv_func_malloc_0_nonnull=yes}
+: ${ac_cv_func_realloc_0_nonnull=yes}
+: ${ac_cv_func_mmap_fixed_mapped=yes}
+: ${ac_cv_func_fork_works=yes}
+: ${ac_cv_func_vfork_works=yes}
+: ${ac_cv_func_strerror_r_char_p=no}
+: ${ac_cv_func_getpgrp_void=yes}
+: ${ac_cv_func_setpgrp_void=yes}
+: ${ac_cv_func_strnlen_working=yes}
+: ${ac_cv_func_lstat_dereferences_slashed_symlink=yes}
+: ${ac_cv_file__dev_zero=yes}
+: ${ac_cv_sizeof_long=8}
+: ${ac_cv_sizeof_void_p=8}
+: ${ac_cv_c_bigendian=no}

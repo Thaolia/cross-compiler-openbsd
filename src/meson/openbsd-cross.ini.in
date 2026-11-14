@@ -1,0 +1,22 @@
+# Meson cross file template; install.sh renders it per flavor as
+# <prefix>/share/openbsd-cross/openbsd-@FLAVOR@.ini
+#   meson setup build --cross-file <prefix>/share/openbsd-cross/openbsd-8.0.ini
+
+[constants]
+t = '@BINDIR@/x86_64-unknown-openbsd@FLAVOR@'
+
+[binaries]
+c = t + '-cc'
+cpp = t + '-c++'
+ar = t + '-ar'
+strip = t + '-strip'
+pkg-config = t + '-pkg-config'
+
+[properties]
+sys_root = '@SYSROOT@'
+
+[host_machine]
+system = 'openbsd'
+cpu_family = 'x86_64'
+cpu = 'x86_64'
+endian = 'little'

@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.20)
+project(sdl2demo C)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(SDL2 REQUIRED IMPORTED_TARGET sdl2)
+add_executable(sdl2demo sdl2demo.c)
+target_link_libraries(sdl2demo PRIVATE PkgConfig::SDL2)
+install(TARGETS sdl2demo)

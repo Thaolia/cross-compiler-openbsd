@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 3.20)
+project(jqdemo C)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(JQ REQUIRED IMPORTED_TARGET libjq)
+add_executable(jqdemo jqdemo.c)
+target_link_libraries(jqdemo PRIVATE PkgConfig::JQ)
+include(GNUInstallDirs)
+install(TARGETS jqdemo)

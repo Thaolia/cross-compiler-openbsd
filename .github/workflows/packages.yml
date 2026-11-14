@@ -1,0 +1,103 @@
+name: example packages
+
+# Builds the examples in tests/ with the toolchain image, then installs and runs them
+# on a real OpenBSD VM. Signing (optional):
+#   repository variable PKG_KEY_NAME = e.g. "myproject-pkg"
+#   repository secret   PKG_SECKEY   = content of myproject-pkg.sec (signify -n key)
+#   public key committed as assets/pkg-keys/myproject-pkg.pub
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor: ["8.0", "current"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare
+        env:
+          PKG_SECKEY: ${{ secrets.PKG_SECKEY }}
+          PKG_KEY_NAME: ${{ vars.PKG_KEY_NAME }}
+        run: |
+          echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/openbsd-cross:${{ matrix.flavor }}" >> "$GITHUB_ENV"
+          mkdir -p .keys out
+          if [ -n "$PKG_SECKEY" ] && [ -n "$PKG_KEY_NAME" ]; then
+            umask 077
+            printf '%s\n' "$PKG_SECKEY" > ".keys/$PKG_KEY_NAME.sec"
+            echo "KEYARG=.keys/$PKG_KEY_NAME.sec" >> "$GITHUB_ENV"
+          fi
+      - name: Cross-build and package
+        run: |
+          # root in the container: pkg-fetch installs dependencies into the image sysroot.
+          docker run --rm -v "$PWD:/work" -w /work \
+            -e KEYARG="${KEYARG:-}" -e FLAVOR="${{ matrix.flavor }}" "$IMAGE" sh -ec '
+            for ex in jqdemo sdl2demo; do
+              tests/build-example.sh "tests/$ex" "$FLAVOR" "out/$FLAVOR" $KEYARG
+            done'
+          sudo chown -R "$(id -u):$(id -g)" out
+      - name: Remove key
+        if: always()
+        run: rm -rf .keys
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages-${{ matrix.flavor }}
+          path: out/${{ matrix.flavor }}/*.tgz
+
+  test-stable:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: packages-8.0
+          path: out
+      - name: Install and run on OpenBSD 8.0
+        uses: vmactions/openbsd-vm@v1
+        with:
+          release: "8.0"
+          usesh: true
+          run: |
+            set -ex
+            uname -a
+            if [ -n "${{ vars.PKG_KEY_NAME }}" ]; then
+              cp "assets/pkg-keys/${{ vars.PKG_KEY_NAME }}.pub" /etc/signify/
+              ADD="pkg_add"
+            else
+              ADD="pkg_add -D unsigned"
+            fi
+            $ADD ./out/jqdemo-0.1.tgz ./out/sdl2demo-0.1.tgz
+            pkg_info -f jqdemo sdl2demo
+            /usr/local/bin/jqdemo
+            SDL_VIDEODRIVER=dummy /usr/local/bin/sdl2demo 1
+            pkg_delete jqdemo sdl2demo
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: test-stable
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for d in dist/packages-*; do
+            f=${d#dist/packages-}
+            for p in "$d"/*.tgz; do cp "$p" "dist/openbsd-$f-$(basename "$p")"; done
+          done
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --generate-notes dist/openbsd-*.tgz
