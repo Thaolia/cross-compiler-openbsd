@@ -9,9 +9,11 @@ ARG OPENBSD_FLAVOR=8.0
 ARG OPENBSD_SETS="base comp xbase"
 ARG OPENBSD_MIRROR=https://cdn.openbsd.org/pub/OpenBSD
 
-RUN apt-get update \
+# apt.llvm.org occasionally drops connections: let apt retry instead of failing the whole image build.
+RUN echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/80-retries \
+ && apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates curl gnupg \
- && curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor -o /usr/share/keyrings/llvm.gpg \
+ && curl -fsSL --retry 5 https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor -o /usr/share/keyrings/llvm.gpg \
  && echo "deb [signed-by=/usr/share/keyrings/llvm.gpg] http://apt.llvm.org/trixie/ llvm-toolchain-trixie-${LLVM_VERSION} main" \
       > /etc/apt/sources.list.d/llvm.list \
  && apt-get update \
