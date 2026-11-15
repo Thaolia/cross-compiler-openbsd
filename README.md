@@ -13,14 +13,16 @@ Design: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
 ## Status
 
-| Verified on Linux | Not yet verified |
+| Verified | Not yet verified |
 |---|---|
-| Sysroot fetch + signify verification (8.0 and -current) | Running binaries on OpenBSD **8.0** (CI job `test-stable` does it) |
-| C, C++ (libc++), shared libs: PIE, IBT, OpenBSD notes identical to native binaries | Docker image build, GitHub workflows (written, not run) |
-| Dependencies from official packages (jq, sdl2 + X11 from `xbase`) | `pkg_add` acceptance of the generated packages |
+| Sysroot fetch + signify verification (8.0 and -current) | Installing packages on a real -current machine with `pkg_add` |
+| C, C++ (libc++), shared libs: PIE, IBT, OpenBSD notes identical to native binaries | |
+| Dependencies from official packages (jq, sdl2 + X11 from `xbase`) | |
 | CMake build of an SDL2 program, packaged with automatic `@wantlib`/`@depend` | |
 | Package signatures byte-compatible with `signify -z` (checked against real packages) | |
 | **sdl2demo runs on a real OpenBSD -current machine** (2026-11-14, snapshot of the same day) | |
+| **CI on an OpenBSD 8.0 VM**: `pkg_add` of both example packages (dependencies fetched by pkg_add), both run, `pkg_delete` (2026-11-15) | |
+| Docker images `openbsd-cross:8.0` / `:current` built and published by CI | |
 
 ## Requirements
 

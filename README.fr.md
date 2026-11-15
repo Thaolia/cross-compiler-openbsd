@@ -14,14 +14,16 @@ Architecture : [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
 ## État
 
-| Vérifié sous Linux | Pas encore vérifié |
+| Vérifié | Pas encore vérifié |
 |---|---|
-| Récupération du sysroot + vérification signify (8.0 et -current) | Exécution sur OpenBSD **8.0** (fait par le job CI `test-stable`) |
-| C, C++ (libc++), bibliothèques partagées : PIE, IBT, notes OpenBSD identiques aux binaires natifs | Build de l'image Docker, workflows GitHub (écrits, pas exécutés) |
-| Dépendances issues des paquets officiels (jq, sdl2 + X11 via `xbase`) | Acceptation des paquets générés par `pkg_add` |
+| Récupération du sysroot + vérification signify (8.0 et -current) | Installation par `pkg_add` sur une vraie machine -current |
+| C, C++ (libc++), bibliothèques partagées : PIE, IBT, notes OpenBSD identiques aux binaires natifs | |
+| Dépendances issues des paquets officiels (jq, sdl2 + X11 via `xbase`) | |
 | Build CMake d'un programme SDL2, empaqueté avec `@wantlib`/`@depend` automatiques | |
 | Signatures de paquets compatibles octet pour octet avec `signify -z` (comparées à de vrais paquets) | |
 | **sdl2demo fonctionne sur une vraie machine OpenBSD -current** (2026-11-14, snapshot du jour) | |
+| **CI dans une VM OpenBSD 8.0** : `pkg_add` des deux paquets d'exemple (dépendances récupérées par pkg_add), exécution des deux, `pkg_delete` (2026-11-15) | |
+| Images Docker `openbsd-cross:8.0` / `:current` construites et publiées par la CI | |
 
 ## Démarrage rapide
 

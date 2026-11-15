@@ -33,11 +33,13 @@ modifier crosstool-ng.
 7. **Exécution réelle sur -current** (2026-11-14) : `sdl2demo-0.1.tgz`, compilé contre le snapshot du jour,
    a été testé par l'utilisateur sur sa machine OpenBSD -current, et le binaire fonctionne.
 
+8. **CI de bout en bout** (2026-11-15) : images Docker 8.0 et -current construites et publiées. Les exemples ont été
+   compilés et empaquetés dans ces images. Dans une VM OpenBSD 8.0, `pkg_add` les a installés (en allant chercher
+   jq et sdl2 tout seul), les deux binaires ont tourné et `pkg_delete` les a retirés.
+
 ## Ce qui reste à prouver
 
-- Exécution sur OpenBSD 8.0 et confirmation explicite du cycle `pkg_add`/`pkg_delete` :
-  le job CI `test-stable` (VM `vmactions/openbsd-vm`) s'en charge.
-- Build de l'image Docker et exécution des workflows (écrits, jamais lancés).
+- `pkg_add` sur -current (le binaire y tourne ; l'installation par paquet n'a été confirmée qu'en 8.0).
 
 ## Risques
 
