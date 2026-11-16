@@ -3,8 +3,9 @@
 # usage: build-example.sh <example-dir> <flavor> <outdir> [signing-key-pkg.sec]
 # <example-dir>/pkg.conf defines PKGNAME PKGPATH COMMENT DESC DEPS (official packages), and
 # BUILD: cmake (default) or nuitka (then NUITKA_MAIN = main .py file, NUITKA_MODE = accelerated
-# (default; installed as bin/<name>) or standalone (installed in libexec/<name>/, linked from
-# bin/<name>), NUITKA_NAME = <name> (default: NUITKA_MAIN without .py)).
+# (default; installed as bin/<name>), standalone (installed in libexec/<name>/, linked from
+# bin/<name>) or onefile (installed as bin/<name>), NUITKA_NAME = <name> (default: NUITKA_MAIN
+# without .py)).
 # Needs the front-end on PATH (docker image, or `src/wrappers/install.sh <prefix> <flavor>`);
 # for nuitka, also OPENBSD_NUITKA_PYTHON / OPENBSD_NUITKA_PATH if Nuitka is not in python3.
 set -eu
@@ -50,6 +51,10 @@ case $BUILD in
                     -o "$work/stage/usr/local/libexec/$name" "$src/$NUITKA_MAIN"
                 mkdir -p "$work/stage/usr/local/bin"
                 ln -s "../libexec/$name/$name" "$work/stage/usr/local/bin/$name"
+                ;;
+            onefile)
+                openbsd-nuitka --flavor "$flavor" --mode onefile --name "$name" \
+                    -o "$work/stage/usr/local/bin/$name" "$src/$NUITKA_MAIN"
                 ;;
             *)
                 echo "$0: unknown NUITKA_MODE '$NUITKA_MODE'" >&2; exit 2 ;;

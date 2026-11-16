@@ -17,7 +17,7 @@ Design: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 | Verified | Not yet verified |
 |---|---|
 | Sysroot fetch + signify verification (8.0 and -current) | Installing packages on a real -current machine with `pkg_add` |
-| | Running a Nuitka-built program on OpenBSD, accelerated and standalone (CI job `test-stable` added, not run yet) |
+| | Running a Nuitka onefile program on OpenBSD (CI job `test-stable` extended, not run yet) |
 | C, C++ (libc++), shared libs: PIE, IBT, OpenBSD notes identical to native binaries | |
 | Dependencies from official packages (jq, sdl2 + X11 from `xbase`) | |
 | CMake build of an SDL2 program, packaged with automatic `@wantlib`/`@depend` | |
@@ -27,6 +27,8 @@ Design: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 | Docker images `openbsd-cross:8.0` / `:current` built and published by CI | |
 | Nuitka (accelerated mode) program cross-built for 8.0 and -current: ELF marks identical to the official `python3.14`, packaged with the same `@depend` as official `py3-*` packages | |
 | Nuitka standalone program cross-built for 8.0 and -current: libpython, extension modules and package libraries copied from the sysroot, `DT_RPATH $ORIGIN`, no `@depend`, only base-system `@wantlib` | |
+| **Nuitka programs run on an OpenBSD 8.0 VM** (CI `test-stable`, 2026-11-16): accelerated with the official python package, standalone without it | |
+| Nuitka onefile program cross-built for 8.0 and -current: the standalone directory packed into Nuitka's bootstrap, which only needs `libc` | |
 
 ## Requirements
 
@@ -61,7 +63,7 @@ Build systems:
 ## Python programs (Nuitka)
 
 `openbsd-nuitka` compiles a Python program with [Nuitka](https://nuitka.net) for OpenBSD, in
-one of two modes:
+one of three modes:
 
 - **accelerated** (default): one executable that links to `libpython` and uses the standard
   library of the official `python` package, which the OpenBSD package depends on.
@@ -69,6 +71,9 @@ one of two modes:
   and the package libraries it needs (`libpython`, `libintl`, `libsqlite3`...), all copied from the
   official packages in the sysroot. It runs without the `python` package; base-system libraries
   (`libc`, `libssl`...) come with the OS, so the build only runs on the matching release.
+- **onefile** (`--mode onefile`): the standalone directory packed into one executable, which
+  unpacks it to `$TMPDIR` (or `/tmp`) on each start, runs the program from there and removes it
+  on exit. `--name` names the program inside (default: the script's name).
 
 ```sh
 openbsd-pkg-fetch --sysroot "$(x86_64-unknown-openbsd8.0-sysroot)" python%3.14
@@ -76,15 +81,17 @@ openbsd-nuitka --flavor 8.0 -o stage/usr/local/bin/hello hello.py   # [-- <nuitk
 openbsd-nuitka --flavor 8.0 --print-depend   # --depend argument for openbsd-pkg-create
 openbsd-nuitka --flavor 8.0 --mode standalone -o stage/usr/local/libexec/hello hello.py
 ln -s ../libexec/hello/hello stage/usr/local/bin/hello
+openbsd-nuitka --flavor 8.0 --mode onefile -o stage/usr/local/bin/hello hello.py
 tests/build-example.sh tests/nuitkademo 8.0 out mykey-pkg.sec        # full examples
 tests/build-example.sh tests/nuitkastandalone 8.0 out mykey-pkg.sec
+tests/build-example.sh tests/nuitkaonefile 8.0 out mykey-pkg.sec
 ```
 
 - The Python running Nuitka must have **the target's major.minor** (3.14 for 8.0 and -current
   today): set `OPENBSD_NUITKA_PYTHON` (e.g. a `uv python install 3.14` interpreter) and
   `OPENBSD_NUITKA_PATH` if Nuitka is installed with `pip install --target`. Nuitka 4.3.5 is the
   version checked; it also needs a host C compiler (`gcc`), and `patchelf` for
-  standalone (Nuitka's host build requires it on Linux).
+  standalone and onefile (Nuitka's host build requires it on Linux).
 - Nuitka cannot cross-compile, so it first builds for the host; the generated C is then rebuilt
   with the OpenBSD compiler against the sysroot's Python headers. Local modules are compiled in
   (`--follow-imports`). Accelerated: the standard library comes from the target's python package.
@@ -97,6 +104,11 @@ tests/build-example.sh tests/nuitkastandalone 8.0 out mykey-pkg.sec
 - Standalone packages: shared objects outside `lib/` are packaged as `@so` (like the extension
   modules of the official python package), so `pkg_add` does not register their directory with
   `ldconfig`.
+- Onefile: the program keeps the `wxneeded` mark of the official `python3.X` but runs from
+  `/tmp`, which is not mounted `wxallowed` by default. OpenBSD runs it anyway; only W|X memory
+  mappings fail there (e.g. libffi closures for `ctypes` callbacks). Onefile packages only
+  declare the bootstrap's `@wantlib c`: `pkg_create` cannot see the base libraries of the
+  packed program, so nothing stops installing them on another release.
 
 ## Docker
 
@@ -120,7 +132,8 @@ version and Nuitka (build args `OPENBSD_PYTHON`, default 3.14, and `NUITKA_VERSI
   against the target's headers (3.14.9 on -current today). CPython keeps its ABI within a minor
   release, but prefer the same patch level and rebuild after a python update. In standalone
   builds, the embedded standard library is also the host's patch release.
-- Nuitka `--onefile` is not supported (standalone directory only).
+- Nuitka onefile: only the default extraction (a new temporary directory per run) was checked;
+  builds whose main program is outside the payload are refused.
 
 ## Layout
 

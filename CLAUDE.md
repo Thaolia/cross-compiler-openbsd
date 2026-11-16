@@ -23,8 +23,8 @@ pure-Python OpenBSD package creation. Design: docs/ARCHITECTURE.md. Study: docs/
 ## Verification before declaring done
 1. `python3 -m unittest discover -s tests`
 2. `tests/build-example.sh tests/sdl2demo 8.0 build/out/8.0 build/keys/test-pkg.sec` (and `current`);
-   same for `tests/nuitkademo` and `tests/nuitkastandalone` when touching `src/nuitka/`,
-   `elfinfo.py`, `pkg_create.py` or `build-example.sh`
+   same for `tests/nuitkademo`, `tests/nuitkastandalone` and `tests/nuitkaonefile` when touching
+   `src/nuitka/`, `elfinfo.py`, `pkg_create.py` or `build-example.sh`
 3. `openbsd-signify verify-gzip -p build/keys/test-pkg.pub <pkg>`
 4. Real-OpenBSD checks (pkg_add, execution) only happen in CI `test-stable` or a QEMU VM — say so
    explicitly when they were not run.
@@ -40,9 +40,10 @@ pure-Python OpenBSD package creation. Design: docs/ARCHITECTURE.md. Study: docs/
 - This host has tools the Docker image lacks (e.g. `patchelf`, which Nuitka standalone needs):
   any host tool the build uses must also be installed in `docker/Dockerfile`.
 - Nuitka integration relies on Nuitka internals (plugin patch, `--show-scons` output,
-  `@link_input.txt`, `--report` XML, `<module>.so` names in `*.dist`): after bumping Nuitka, rerun
-  both Nuitka examples and compare `readelf -lW` with the sysroot's `usr/local/bin/python3.X`.
-- Nuitka builds (both modes) must not embed build-host paths: check with
+  `@link_input.txt`, `--report` XML, `<module>.so` names in `*.dist`, the `*.onefile-build` layout,
+  `onefile_definitions.h` and `attachOnefilePayload`): after bumping Nuitka, rerun the three
+  Nuitka examples and compare `readelf -lW` with the sysroot's `usr/local/bin/python3.X`.
+- Nuitka builds (all modes) must not embed build-host paths: check with
   `{ strings -a <exe>; strings -a -e L <exe>; } | grep -E '/home/|/tmp/|/opt/'` (wide strings
   too: PYTHONHOME is wchar_t). Host `_sysconfigdata_*` and `PYTHON_HOME_PATH` are dropped for
   that reason. Test with a uv CPython too (CI's case), not only Debian's `/usr/bin/python3`.

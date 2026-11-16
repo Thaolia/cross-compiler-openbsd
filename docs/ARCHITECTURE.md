@@ -13,6 +13,7 @@ src/pkgtools/pkgcommon.py      mtree, packing-list, écriture ustar
 src/nuitka/nuitka_cross.py     programme Python -> build hôte Nuitka -> recompilation du C pour OpenBSD
 src/nuitka/openbsd_target_plugin.py  plugin Nuitka : sys.executable/sys.prefix de la cible
 src/nuitka/standalone.py       mode standalone : rapport Nuitka -> modules d'extension et bibliothèques du sysroot
+src/nuitka/onefile.py          mode onefile : répertoire standalone OpenBSD -> payload du bootstrap Nuitka
 ```
 
 ## Installation (préfixe)
@@ -111,6 +112,32 @@ Mode *standalone* (`--mode standalone`, `-o` = répertoire, exécutable nommé d
 - Fichiers de données : fichiers non ELF du `*.dist` de l'hôte, copiés tels quels ; les ELF de l'hôte
   sont remplacés (programme, modules) ou abandonnés (bibliothèques Linux), avec un avertissement
   pour tout ELF non reconnu.
+
+Mode *onefile* (`--mode onefile`, `-o` = fichier, `--name` = nom du programme à l'intérieur) :
+build hôte `--mode=onefile`, puis le répertoire standalone ci-dessus est assemblé dans le
+répertoire de travail et empaqueté (`onefile.py`) :
+
+- Le build hôte laisse `*.onefile-build/` : sources du bootstrap (`static_src/OnefileBootstrap.c`
+  et `__constants_data___payload.c`), `onefile_definitions.h` et `blobs/__payload.bin`, le `*.dist`
+  de l'hôte empaqueté. Le C du payload se limite à `#embed "blobs/__payload.bin"` : remplacer le
+  fichier suffit, il ne dépend pas de son contenu.
+- Le payload est refait à partir du répertoire OpenBSD par le compresseur de Nuitka lui-même
+  (`attachOnefilePayload`, lancé avec le Python hôte), avec les réglages du build hôte :
+  compression zstd et mode archive lus dans `onefile_definitions.h`, sommes de contrôle seulement
+  hors du mode « répertoire temporaire » (`-D_NUITKA_ONEFILE_TEMP_BOOL` de la ligne de
+  compilation). Le programme principal vient en premier : c'est le fichier que le bootstrap
+  lance. Le format (noms, drapeaux, tailles) ne dépend pas de l'hôte.
+  `_NUITKA_ONEFILE_PAYLOAD_SIZE_INT` est réécrit avec la nouvelle taille.
+- Le bootstrap est recompilé avec les drapeaux de sa propre commande `--show-scons` (après l'étape
+  `Onefile.scons`) et lié contre la seule `libc`. Le programme intérieur est lié en plus avec
+  `-lpthread` : en onefile, il surveille son bootstrap depuis un thread, et sous OpenBSD pthread
+  n'est pas dans la libc.
+- À l'exécution, le bootstrap décompresse le payload dans `$TMPDIR` (ou `/tmp`), lance le
+  programme et supprime le répertoire à la sortie. Le noyau (`uvm_wxcheck`) ne refuse pas
+  l'exécution d'un binaire `wxneeded` hors d'un système de fichiers `wxallowed` : seules les
+  projections W|X échouent (`ENOTSUP`, ou `SIGABRT` si `kern.wxabort=1`).
+- `pkg_create` ne voit que le bootstrap : `@wantlib c` seulement, les bibliothèques de base du
+  programme empaqueté n'apparaissent pas.
 
 Version de Nuitka vérifiée : `NUITKA_VERSION` dans `nuitka_cross.py` (avertissement sinon) ; le
 plugin échoue explicitement si `CodeGeneration.getConstantsDefinitionCode` n'existe plus.

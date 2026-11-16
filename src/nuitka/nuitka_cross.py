@@ -3,6 +3,7 @@
 
     nuitka_cross.py --flavor 8.0 -o stage/usr/local/bin/hello hello.py [-- <nuitka options>]
     nuitka_cross.py --flavor 8.0 --mode standalone -o stage/usr/local/libexec/hello hello.py
+    nuitka_cross.py --flavor 8.0 --mode onefile -o hello hello.py
 
 The official python package must be installed in the sysroot first (openbsd-pkg-fetch
 --sysroot <sysroot> python%3.14). The Python running Nuitka must have the target's major.minor
@@ -14,6 +15,8 @@ pkg_create.py --depend argument).
 standalone: -o is a directory holding the executable (named after the script, or --name), the
 extension modules and the package libraries it needs, taken from the sysroot; it runs without
 the python package. The stdlib is embedded as bytecode compiled by the host Python.
+onefile: -o is a single executable holding the standalone directory, which it extracts to
+$TMPDIR (or /tmp) and runs from there on each start.
 
 Nuitka cannot cross-compile, so it first runs a normal build for the host: that produces every
 generated file (C code, constants blob, build_definitions.h, list of objects). The same C files
@@ -36,6 +39,7 @@ import tempfile
 HERE = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), "pkgtools"))
 import elfinfo  # noqa: E402
+import onefile  # noqa: E402
 import pkgcommon  # noqa: E402
 import standalone  # noqa: E402
 
@@ -138,11 +142,11 @@ def interpreter_link_flags(phtypes):
     return [flag for pt, flag in INTERPRETER_MARKS if pt in phtypes]
 
 
-MODES = ("accelerated", "standalone")
+MODES = ("accelerated", "standalone", "onefile")
 # Options that change what Nuitka builds or where: the replay below relies on the ones it sets.
 FORBIDDEN_OPTIONS = ("--mode", "--standalone", "--onefile", "--module", "--lto",
                      "--static-libpython", "--file-reference-choice", "--output-dir",
-                     "--output-filename", "--report")
+                     "--output-filename", "--report", "--remove-output")
 
 
 def check_extra_options(extra):
@@ -312,6 +316,30 @@ def assemble_standalone(host_dir, host_exe_name, out_dir, exe, sysroot, mm, verb
             log(f"  {rel} <- {plan[rel]}")
 
 
+def build_bootstrap(python, env, host_dir, lines, nuitka_dir, dist, exe, out, cc, strip, a):
+    """Pack dist into the host build's onefile bootstrap and cross-compile it to out."""
+    builds = glob.glob(os.path.join(host_dir, "*.onefile-build"))
+    if len(builds) != 1:
+        raise CrossError(f"expected one *.onefile-build directory in {host_dir}, got {builds}")
+    source_dir = builds[0]
+    compiles, sources = onefile.bootstrap_compile_lines(lines)
+    flags = parse_compile_line(compiles, nuitka_dir, "/nonexistent")
+    size = onefile.pack_payload(python, env, source_dir, dist, exe, onefile.temp_mode(flags),
+                                a.jobs)
+    log(f"onefile: payload of {size} bytes, bootstrap from {len(sources)} C files")
+    objs = compile_all(cc, flags, source_dir, os.path.join(host_dir, "openbsd-onefile-obj"),
+                       sources, a.jobs, a.verbose)
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    cmd = [cc, "-o", out, *objs]
+    if a.verbose:
+        log(" ".join(shlex.quote(c) for c in cmd))
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        raise CrossError(f"bootstrap link failed:\n{r.stderr}")
+    if not a.no_strip:
+        subprocess.run([strip, out], check=True)
+
+
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     extra = []
@@ -321,9 +349,11 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("script", nargs="?", help="main Python file of the program")
     ap.add_argument("-o", "--output",
-                    help="executable to write (accelerated) or directory to create (standalone)")
+                    help="executable to write (accelerated, onefile) or directory to create "
+                         "(standalone)")
     ap.add_argument("--mode", choices=MODES, default="accelerated")
-    ap.add_argument("--name", help="standalone executable name (default: script name)")
+    ap.add_argument("--name", help="standalone executable name, also the program's name "
+                                   "inside a onefile one (default: script name)")
     ap.add_argument("--print-depend", action="store_true",
                     help="only print the pkg_create --depend argument for the python package "
                          "(accelerated programs)")
@@ -342,8 +372,8 @@ def main(argv=None):
         ap.error("--print-depend only applies to accelerated programs")
     if not a.print_depend and (not a.script or not a.output):
         ap.error("script and -o/--output are required")
-    if a.name and a.mode != "standalone":
-        ap.error("--name only applies to standalone programs (-o names the executable)")
+    if a.name and a.mode == "accelerated":
+        ap.error("--name only applies to standalone and onefile programs")
 
     t = f"x86_64-unknown-openbsd{a.flavor}"
     try:
@@ -364,12 +394,16 @@ def main(argv=None):
         if interp is None or not interp.is_executable:
             raise CrossError(f"{target_exe} in the sysroot is not an executable")
         out = os.path.abspath(a.output)
-        if a.mode == "standalone":
+        bundled = a.mode in ("standalone", "onefile")
+        if bundled:
             name = a.name or os.path.splitext(os.path.basename(a.script))[0]
             if not name or "/" in name:
                 raise CrossError(f"bad executable name '{name}'")
+        if a.mode == "standalone":
             if os.path.exists(out) and (not os.path.isdir(out) or os.listdir(out)):
                 raise CrossError(f"{out} exists and is not an empty directory")
+        elif os.path.isdir(out):
+            raise CrossError(f"{out} is a directory")
 
         env = dict(os.environ)
         if a.nuitka_path:
@@ -397,7 +431,7 @@ def main(argv=None):
         try:
             host_dir = os.path.join(work, "host")
             nuitka_extra = list(extra)
-            if a.mode == "standalone":
+            if bundled:
                 mods = os.path.join(work, "target-modules")
                 nuitka_extra += [f"--include-module={n}"
                                  for n in target_sysconfig_modules(sysroot, mm, mods)]
@@ -420,25 +454,32 @@ def main(argv=None):
             objs = compile_all(cc, flags, source_dir, os.path.join(work, "openbsd-obj"),
                                sources, a.jobs, a.verbose)
             link_flags = interpreter_link_flags(interp.phtypes)
-            if a.mode == "standalone":
+            if bundled:
                 # DT_RPATH, not DT_RUNPATH: ld.so also searches the program's DT_RPATH for the
                 # dependencies of dlopen()ed extension modules.
                 link_flags += ["-Wl,-rpath,$ORIGIN", "-Wl,--disable-new-dtags"]
-                exe = os.path.join(out, name)
+                dist = out if a.mode == "standalone" else os.path.join(work, "openbsd-dist")
+                exe = os.path.join(dist, name)
             else:
                 exe = out
+            if a.mode == "onefile":
+                # The program watches its bootstrap from a thread; pthread is not in libc here.
+                link_flags.append("-lpthread")
             os.makedirs(os.path.dirname(exe), exist_ok=True)
             link(cc, exe, objs, link_flags, sysroot, mm, a.verbose)
             if not a.no_strip:
                 subprocess.run([strip, exe], check=True)
-            if a.mode == "standalone":
+            if bundled:
                 host_exe_name = os.path.basename(source_dir)[:-len(".build")] + ".bin"
-                assemble_standalone(host_dir, host_exe_name, out, exe, sysroot, mm, a.verbose)
+                assemble_standalone(host_dir, host_exe_name, dist, exe, sysroot, mm, a.verbose)
+            if a.mode == "onefile":
+                build_bootstrap(a.python, env, host_dir, lines, host["nuitka_dir"], dist, exe,
+                                out, cc, strip, a)
             log(f"wrote {out}")
         finally:
             if not a.keep_build:
                 shutil.rmtree(work, ignore_errors=True)
-    except (CrossError, standalone.StandaloneError) as e:
+    except (CrossError, standalone.StandaloneError, onefile.OnefileError) as e:
         log(f"error: {e}")
         return 1
     except subprocess.CalledProcessError as e:

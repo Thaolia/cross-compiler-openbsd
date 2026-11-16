@@ -93,7 +93,7 @@ jobs:
           # root in the container: pkg-fetch installs dependencies into the image sysroot.
           docker run --rm -v "$PWD:/work" -w /work \
             -e KEYARG="${KEYARG:-}" -e FLAVOR="${{ matrix.flavor }}" "$IMAGE" sh -ec '
-            for ex in jqdemo sdl2demo nuitkademo nuitkastandalone; do
+            for ex in jqdemo sdl2demo nuitkademo nuitkastandalone nuitkaonefile; do
               tests/build-example.sh "tests/$ex" "$FLAVOR" "out/$FLAVOR" $KEYARG
             done'
           sudo chown -R "$(id -u):$(id -g)" out
@@ -146,6 +146,16 @@ jobs:
             grep -q "\"executable\": \"$sa/python3.14\"" /tmp/sa.json
             grep -q '"soabi": "cpython-314"' /tmp/sa.json
             pkg_delete nuitkastandalone
+            # Onefile: one executable that unpacks itself to /tmp (normally not wxallowed), runs
+            # from there, then removes its temporary directory.
+            $ADD ./out/nuitkaonefile-0.1.tgz
+            pkg_info -f nuitkaonefile
+            /usr/local/bin/nuitkaonefile > /tmp/of.json
+            cat /tmp/of.json
+            grep -q '"prefix": "/tmp/onefile_' /tmp/of.json
+            grep -q '"soabi": "cpython-314"' /tmp/of.json
+            if ls -d /tmp/onefile_* 2>/dev/null; then echo "temporary directory left"; exit 1; fi
+            pkg_delete nuitkaonefile
             # nuitkademo pulls the official python-3.14 package from the mirror (@depend).
             $ADD ./out/jqdemo-0.1.tgz ./out/sdl2demo-0.1.tgz ./out/nuitkademo-0.1.tgz
             pkg_info -f jqdemo sdl2demo nuitkademo
