@@ -153,4 +153,7 @@ plugin échoue explicitement si `CodeGeneration.getConstantsDefinitionCode` n'ex
   puis publication en release sur un tag `v*`. Un push sur `main` qui modifie les entrées de
   l'image (`src/`, `docker/`, `image.yml`) ne construit rien directement : le job `changes`
   saute le build, et c'est le run déclenché (`workflow_run`) par la nouvelle image qui teste
-  le push. Sinon le build utiliserait l'ancienne image et échouerait pour rien.
+  le push. Sinon le build utiliserait l'ancienne image et échouerait pour rien. Comme `changes`
+  est sauté hors des pushes sur `main`, et que la condition implicite `success()` d'un job
+  échoue si un job en amont, même indirect, a été sauté, `test-stable` et `release` testent
+  explicitement le résultat de leur dépendance directe.
