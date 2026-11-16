@@ -10,7 +10,9 @@ on:
   push:
     branches: [main]
     tags: ["v*"]
-    # A change to the image's inputs builds the image first; workflow_run below then runs this workflow on it.
+    # A change to the image's inputs builds the image first; workflow_run below then runs this
+    # workflow on it. paths-ignore only skips pushes changing nothing else: the changes job
+    # handles mixed ones.
     paths-ignore: [docker/**, src/**, .github/workflows/image.yml]
   pull_request:
   workflow_dispatch:
@@ -23,8 +25,39 @@ on:
 permissions: {}
 
 jobs:
+  # Did this push to main also change the image's inputs (the paths of image.yml)? Then the
+  # toolchain image is being rebuilt, and a build here would use the old one: skip it, the
+  # workflow_run started by the new image tests the push.
+  changes:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      image: ${{ steps.diff.outputs.image }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - id: diff
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          image=false
+          # BEFORE is unknown after a force push: build, rather than skip the test.
+          if git cat-file -e "$BEFORE^{commit}" 2>/dev/null &&
+             git diff --name-only "$BEFORE" "$GITHUB_SHA" |
+               grep -qE '^(docker/|src/|\.github/workflows/image\.yml$)'; then
+            image=true
+          fi
+          echo "image=$image" | tee -a "$GITHUB_OUTPUT"
+
   build:
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    needs: changes
+    if: >-
+      !cancelled() && needs.changes.result != 'failure' && needs.changes.outputs.image != 'true' &&
+      (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     permissions:
       contents: read

@@ -121,4 +121,7 @@ plugin échoue explicitement si `CodeGeneration.getConstantsDefinitionCode` n'ex
   elles contiennent aussi le paquet python dans le sysroot, un CPython géré par uv
   (`OPENBSD_NUITKA_PYTHON`) et Nuitka (`OPENBSD_NUITKA_PATH`).
 - `packages.yml` : build des exemples dans l'image, puis installation et exécution dans une VM OpenBSD 8.0,
-  puis publication en release sur un tag `v*`.
+  puis publication en release sur un tag `v*`. Un push sur `main` qui modifie les entrées de
+  l'image (`src/`, `docker/`, `image.yml`) ne construit rien directement : le job `changes`
+  saute le build, et c'est le run déclenché (`workflow_run`) par la nouvelle image qui teste
+  le push. Sinon le build utiliserait l'ancienne image et échouerait pour rien.
