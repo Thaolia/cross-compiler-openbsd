@@ -51,6 +51,31 @@ def download(url, dest):
     os.replace(tmp, dest)
 
 
+def resolve_name(names, wanted, where):
+    """Map a stem ('oniguruma'), a stem%branch ('python%3.14', as pkg_add accepts) or a full
+    name ('oniguruma-6.9.10') to one package name of the index."""
+    if wanted in names:
+        return wanted
+    want_stem, _, branch = wanted.partition("%")
+    matches = []
+    for n in names:
+        try:
+            stem, version, flavor = pkgcommon.split_pkgname(n)
+        except ValueError:
+            continue
+        if stem == want_stem and (not branch or version == branch
+                                  or version.startswith(branch + ".")):
+            matches.append((flavor, n))
+    plain = [n for fl, n in matches if not fl]
+    if len(plain) == 1:
+        return plain[0]
+    if len(matches) == 1:
+        return matches[0][1]
+    if not matches:
+        raise FetchError(f"no package named '{wanted}' in {where}")
+    raise FetchError(f"'{wanted}' is ambiguous: {', '.join(n for _, n in matches)}")
+
+
 class Fetcher:
     def __init__(self, sysroot, mirror):
         self.sysroot = os.path.abspath(sysroot)
@@ -72,26 +97,7 @@ class Fetcher:
         return self._index
 
     def resolve(self, wanted):
-        """Map a stem ('oniguruma') or full name ('oniguruma-6.9.10') to a package name."""
-        names = self.index()
-        if wanted in names:
-            return wanted
-        matches = []
-        for n in names:
-            try:
-                stem, _, flavor = pkgcommon.split_pkgname(n)
-            except ValueError:
-                continue
-            if stem == wanted:
-                matches.append((flavor, n))
-        plain = [n for fl, n in matches if not fl]
-        if len(plain) == 1:
-            return plain[0]
-        if len(matches) == 1:
-            return matches[0][1]
-        if not matches:
-            raise FetchError(f"no package named '{wanted}' in {self.url}")
-        raise FetchError(f"'{wanted}' is ambiguous: {', '.join(n for _, n in matches)}")
+        return resolve_name(self.index(), wanted, self.url)
 
     def verified_package(self, name):
         path = os.path.join(self.cache, name + ".tgz")

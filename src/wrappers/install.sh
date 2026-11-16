@@ -5,7 +5,7 @@
 # Layout produced:
 #   <prefix>/bin/openbsd-cross + x86_64-unknown-openbsd<flavor>-<tool> symlinks
 #   <prefix>/share/openbsd-cross/{openbsd-toolchain.cmake,openbsd-<flavor>.ini,config.site}
-#   <prefix>/libexec/openbsd-cross/{pkgtools,sysroot,keys}  (pkg_create.py, pkg_fetch.py, ...)
+#   <prefix>/libexec/openbsd-cross/{pkgtools,nuitka,sysroot,keys}  (pkg_create.py, nuitka_cross.py, ...)
 # Sysroots are expected in <prefix>/sysroot/<flavor> (src/sysroot/fetch-sysroot.sh).
 set -eu
 [ $# -ge 2 ] || { echo "usage: $0 <prefix> <flavor>..." >&2; exit 2; }
@@ -18,14 +18,15 @@ libexec=$prefix/libexec/openbsd-cross
 mkdir -p "$prefix/bin" "$share" "$libexec"
 install -m 0755 "$src/wrappers/openbsd-cross" "$prefix/bin/openbsd-cross"
 install -m 0644 "$src/cmake/openbsd-toolchain.cmake" "$src/autotools/config.site" "$share/"
-for d in pkgtools sysroot keys; do
+for d in pkgtools nuitka sysroot keys; do
     rm -rf "${libexec:?}/$d"
     cp -R "$src/$d" "$libexec/$d"
 done
-rm -rf "$libexec/pkgtools/__pycache__"
+rm -rf "$libexec/pkgtools/__pycache__" "$libexec/nuitka/__pycache__"
 for t in pkg_create pkg_fetch signify; do
     ln -sfn "../libexec/openbsd-cross/pkgtools/$t.py" "$prefix/bin/openbsd-$(echo $t | tr _ -)"
 done
+ln -sfn ../libexec/openbsd-cross/nuitka/nuitka_cross.py "$prefix/bin/openbsd-nuitka"
 ln -sfn ../libexec/openbsd-cross/sysroot/fetch-sysroot.sh "$prefix/bin/openbsd-fetch-sysroot"
 
 for flavor in "$@"; do

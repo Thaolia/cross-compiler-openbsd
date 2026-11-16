@@ -22,7 +22,9 @@ pure-Python OpenBSD package creation. Design: docs/ARCHITECTURE.md. Study: docs/
 
 ## Verification before declaring done
 1. `python3 -m unittest discover -s tests`
-2. `tests/build-example.sh tests/sdl2demo 8.0 build/out/8.0 build/keys/test-pkg.sec` (and `current`)
+2. `tests/build-example.sh tests/sdl2demo 8.0 build/out/8.0 build/keys/test-pkg.sec` (and `current`);
+   same for `tests/nuitkademo` and `tests/nuitkastandalone` when touching `src/nuitka/`,
+   `elfinfo.py`, `pkg_create.py` or `build-example.sh`
 3. `openbsd-signify verify-gzip -p build/keys/test-pkg.pub <pkg>`
 4. Real-OpenBSD checks (pkg_add, execution) only happen in CI `test-stable` or a QEMU VM — say so
    explicitly when they were not run.
@@ -31,3 +33,12 @@ pure-Python OpenBSD package creation. Design: docs/ARCHITECTURE.md. Study: docs/
 - No sudo package installs: lld was extracted locally to `build/hosttools/` from the Debian .deb;
   export `OPENBSD_LLD=$PWD/build/hosttools/root/usr/lib/llvm-21/bin/ld.lld`.
 - Install the front-end for dev with `src/wrappers/install.sh build 8.0 current`.
+- Nuitka (pinned, see `NUITKA_VERSION` in `src/nuitka/nuitka_cross.py`) lives in `build/nuitka/lib`:
+  `uv pip install --python /usr/bin/python3 --target build/nuitka/lib nuitka==<ver>`, then
+  export `OPENBSD_NUITKA_PATH=$PWD/build/nuitka/lib`. The host Python must match the sysroot
+  python package's major.minor (3.14).
+- Nuitka integration relies on Nuitka internals (plugin patch, `--show-scons` output,
+  `@link_input.txt`, `--report` XML, `<module>.so` names in `*.dist`): after bumping Nuitka, rerun
+  both Nuitka examples and compare `readelf -lW` with the sysroot's `usr/local/bin/python3.X`.
+- Standalone builds must not embed build-host paths: check with
+  `strings -a <exe> | grep -E '/home/|/tmp/'` (host `_sysconfigdata_*` are excluded for that reason).

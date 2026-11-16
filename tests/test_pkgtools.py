@@ -9,6 +9,7 @@ import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "src", "pkgtools"))
+import pkg_fetch  # noqa: E402
 import pkgcommon  # noqa: E402
 import signify  # noqa: E402
 
@@ -91,6 +92,17 @@ class MiscTest(unittest.TestCase):
         self.assertEqual(pkgcommon.split_pkgname("vim-9.1.1-gtk3"), ("vim", "9.1.1", "-gtk3"))
         with self.assertRaises(ValueError):
             pkgcommon.split_pkgname("noversion")
+
+    def test_resolve_name(self):
+        names = ["python-2.7.18p16", "python-3.14.7p0", "vim-9.1.1-gtk3", "vim-9.1.1-no_x11",
+                 "jq-1.8.2"]
+        self.assertEqual(pkg_fetch.resolve_name(names, "jq", "idx"), "jq-1.8.2")
+        self.assertEqual(pkg_fetch.resolve_name(names, "python%3.14", "idx"), "python-3.14.7p0")
+        self.assertEqual(pkg_fetch.resolve_name(names, "python%2.7", "idx"), "python-2.7.18p16")
+        self.assertEqual(pkg_fetch.resolve_name(names, "python-3.14.7p0", "idx"), "python-3.14.7p0")
+        for bad in ("python", "vim", "python%3.1", "nope"):
+            with self.assertRaises(pkg_fetch.FetchError):
+                pkg_fetch.resolve_name(names, bad, "idx")
 
     def test_mtree(self):
         with tempfile.NamedTemporaryFile("w", suffix=".dist", delete=False) as f:

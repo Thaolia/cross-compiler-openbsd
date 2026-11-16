@@ -1,4 +1,4 @@
-"""Minimal ELF64 little-endian reader: file kind, DT_NEEDED and DT_SONAME.
+"""Minimal ELF64 little-endian reader: file kind, program header types, DT_NEEDED and DT_SONAME.
 
 Just enough to classify package files (@bin / @lib) and compute @wantlib,
 without depending on pyelftools.
@@ -8,15 +8,17 @@ import struct
 ELF_MAGIC = b"\x7fELF"
 ET_EXEC, ET_DYN = 2, 3
 PT_LOAD, PT_DYNAMIC, PT_INTERP = 1, 2, 3
+PT_OPENBSD_WXNEEDED, PT_OPENBSD_NOBTCFI = 0x65A3DBE7, 0x65A3DBE8
 DT_NULL, DT_NEEDED, DT_STRTAB, DT_SONAME = 0, 1, 5, 14
 
 
 class ElfInfo:
-    __slots__ = ("etype", "has_interp", "needed", "soname")
+    __slots__ = ("etype", "has_interp", "phtypes", "needed", "soname")
 
-    def __init__(self, etype, has_interp, needed, soname):
+    def __init__(self, etype, has_interp, phtypes, needed, soname):
         self.etype = etype
         self.has_interp = has_interp
+        self.phtypes = phtypes
         self.needed = needed
         self.soname = soname
 
@@ -45,11 +47,13 @@ def read(path):
     phentsize, phnum = struct.unpack_from("<HH", data, 54)
 
     loads = []
+    phtypes = set()
     dynamic = None
     has_interp = False
     for i in range(phnum):
         p_type, _, p_offset, p_vaddr, _, p_filesz, _, _ = struct.unpack_from(
             "<IIQQQQQQ", data, phoff + i * phentsize)
+        phtypes.add(p_type)
         if p_type == PT_LOAD:
             loads.append((p_vaddr, p_offset, p_filesz))
         elif p_type == PT_DYNAMIC:
@@ -58,7 +62,7 @@ def read(path):
             has_interp = True
 
     if dynamic is None:
-        return ElfInfo(etype, has_interp, [], None)
+        return ElfInfo(etype, has_interp, phtypes, [], None)
 
     def vaddr_to_off(addr):
         for vaddr, off, size in loads:
@@ -85,4 +89,4 @@ def read(path):
 
     needed = [string(v) for t, v in entries if t == DT_NEEDED]
     sonames = [string(v) for t, v in entries if t == DT_SONAME]
-    return ElfInfo(etype, has_interp, needed, sonames[0] if sonames else None)
+    return ElfInfo(etype, has_interp, phtypes, needed, sonames[0] if sonames else None)

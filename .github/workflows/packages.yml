@@ -60,7 +60,7 @@ jobs:
           # root in the container: pkg-fetch installs dependencies into the image sysroot.
           docker run --rm -v "$PWD:/work" -w /work \
             -e KEYARG="${KEYARG:-}" -e FLAVOR="${{ matrix.flavor }}" "$IMAGE" sh -ec '
-            for ex in jqdemo sdl2demo; do
+            for ex in jqdemo sdl2demo nuitkademo nuitkastandalone; do
               tests/build-example.sh "tests/$ex" "$FLAVOR" "out/$FLAVOR" $KEYARG
             done'
           sudo chown -R "$(id -u):$(id -g)" out
@@ -99,11 +99,31 @@ jobs:
             else
               ADD="pkg_add -D unsigned"
             fi
-            $ADD ./out/jqdemo-0.1.tgz ./out/sdl2demo-0.1.tgz
-            pkg_info -f jqdemo sdl2demo
+            # Standalone first, while python is not installed: it must run without it, through
+            # the bin/ symlink, with libpython and extension modules from its own directory.
+            $ADD ./out/nuitkastandalone-0.1.tgz
+            pkg_info -f nuitkastandalone
+            pkg_info -e 'python->=3' || echo "python not installed (expected)"
+            sa=/usr/local/libexec/nuitkastandalone
+            ldd $sa/nuitkastandalone | tee /tmp/sa.ldd
+            grep -q "$sa/libpython3.14.so" /tmp/sa.ldd
+            /usr/local/bin/nuitkastandalone > /tmp/sa.json
+            cat /tmp/sa.json
+            grep -q "\"prefix\": \"$sa\"" /tmp/sa.json
+            grep -q "\"executable\": \"$sa/python3.14\"" /tmp/sa.json
+            grep -q '"soabi": "cpython-314"' /tmp/sa.json
+            pkg_delete nuitkastandalone
+            # nuitkademo pulls the official python-3.14 package from the mirror (@depend).
+            $ADD ./out/jqdemo-0.1.tgz ./out/sdl2demo-0.1.tgz ./out/nuitkademo-0.1.tgz
+            pkg_info -f jqdemo sdl2demo nuitkademo
             /usr/local/bin/jqdemo
             SDL_VIDEODRIVER=dummy /usr/local/bin/sdl2demo 1
-            pkg_delete jqdemo sdl2demo
+            /usr/local/bin/nuitkademo > /tmp/nuitkademo.json
+            cat /tmp/nuitkademo.json
+            grep -q '"prefix": "/usr/local"' /tmp/nuitkademo.json
+            grep -q '"executable": "/usr/local/bin/python3.14"' /tmp/nuitkademo.json
+            grep -q '"soabi": "cpython-314"' /tmp/nuitkademo.json
+            pkg_delete jqdemo sdl2demo nuitkademo
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')

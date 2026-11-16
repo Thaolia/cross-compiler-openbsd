@@ -106,10 +106,17 @@ class PackageBuilder:
         annot = None
         if elf is not None and elf.is_shared_lib:
             m = pkgcommon.LIB_RE.match(base)
-            if not m:
-                raise PkgError(f"{rel}: OpenBSD shared libraries must be named libfoo.so.MAJOR.MINOR")
-            annot, mode = "@lib", 0o644
-            self.own_libs.add(base)
+            if os.path.dirname(rel) == "lib" and base.startswith("lib"):
+                if not m:
+                    raise PkgError(f"{rel}: OpenBSD shared libraries must be named "
+                                   "libfoo.so.MAJOR.MINOR")
+                annot, mode = "@lib", 0o644
+            else:
+                # Plugins, Python extension modules and private libraries: @so, like the
+                # official packages, so pkg_add does not register the directory with ldconfig.
+                annot, mode = "@so", 0o755
+            if m:
+                self.own_libs.add(base)
         elif elf is not None and elf.is_executable:
             annot, mode = "@bin", 0o755
         elif base.startswith("lib") and base.endswith(".a"):
