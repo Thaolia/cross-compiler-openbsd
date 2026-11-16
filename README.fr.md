@@ -83,6 +83,9 @@ tests/build-example.sh tests/nuitkaonefile 8.0 out mykey-pkg.sec
   `pip install --target`. Version vérifiée : Nuitka 4.3.5 ; il faut aussi un compilateur C
   hôte (`gcc`), et `patchelf` en standalone et en onefile (exigé par la construction hôte de
   Nuitka sous Linux).
+- Les modules sont trouvés par le Python hôte, **y compris dans son site utilisateur**
+  (`~/.local/lib/python3.X/site-packages`) : passer `--no-user-site` pour qu'un build ne dépende
+  que des site-packages propres à `--python` et du `PYTHONPATH`.
 - Nuitka ne sait pas faire de compilation croisée : il construit d'abord pour l'hôte, puis le C
   généré est recompilé par le compilateur OpenBSD contre les en-têtes Python du sysroot. Les
   modules locaux sont compilés (`--follow-imports`). En accelerated, la bibliothèque standard

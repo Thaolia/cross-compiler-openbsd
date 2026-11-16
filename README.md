@@ -92,6 +92,9 @@ tests/build-example.sh tests/nuitkaonefile 8.0 out mykey-pkg.sec
   `OPENBSD_NUITKA_PATH` if Nuitka is installed with `pip install --target`. Nuitka 4.3.5 is the
   version checked; it also needs a host C compiler (`gcc`), and `patchelf` for
   standalone and onefile (Nuitka's host build requires it on Linux).
+- Modules are found by the host Python, **including its user site**
+  (`~/.local/lib/python3.X/site-packages`): pass `--no-user-site` so that a build only depends
+  on `--python`'s own site-packages and `PYTHONPATH`.
 - Nuitka cannot cross-compile, so it first builds for the host; the generated C is then rebuilt
   with the OpenBSD compiler against the sysroot's Python headers. Local modules are compiled in
   (`--follow-imports`). Accelerated: the standard library comes from the target's python package.

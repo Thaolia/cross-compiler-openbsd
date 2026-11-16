@@ -62,7 +62,9 @@ et charge `libpython3.X.so` et la bibliothèque standard du paquet officiel `pyt
 2. Build hôte normal : `python -m nuitka --mode=accelerated --follow-imports
    --file-reference-choice=runtime --lto=no --static-libpython=no --show-scons
    --user-plugin=openbsd_target_plugin.py`. `CC`/`CFLAGS`… sont retirés de l'environnement :
-   ce build utilise le compilateur hôte. Il produit tous les fichiers générés (C des modules,
+   ce build utilise le compilateur hôte. `--no-user-site` y ajoute `PYTHONNOUSERSITE=1`, hérité
+   par les processus Python que Nuitka lance : le site utilisateur de l'hôte (`~/.local`) n'est
+   alors plus dans `sys.path`, donc ni suivi par `--follow-imports` ni embarqué. Il produit tous les fichiers générés (C des modules,
    blob de constantes, `build_definitions.h`, `static_src/`, `@link_input.txt`).
 3. Le plugin remplace, pendant la seule génération des constantes, `sys.executable` et
    `sys.prefix`/`exec_prefix`/`base_*` par `/usr/local/bin/python3.X` et `/usr/local` : un

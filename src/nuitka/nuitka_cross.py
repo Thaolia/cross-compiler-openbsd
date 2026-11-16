@@ -229,6 +229,22 @@ def link_sources(source_dir):
     return srcs
 
 
+def host_env(base, nuitka_path, no_user_site):
+    """Environment of the host Python that runs Nuitka."""
+    env = dict(base)
+    if nuitka_path:
+        env["PYTHONPATH"] = os.pathsep.join(
+            p for p in (os.path.abspath(nuitka_path), env.get("PYTHONPATH")) if p)
+    # Nuitka follows imports into the host user site (~/.local/lib/python3.X/site-packages)
+    # unless told otherwise; PYTHONNOUSERSITE also reaches the Python processes Nuitka starts.
+    if no_user_site:
+        env["PYTHONNOUSERSITE"] = "1"
+    # The host build must use the host compiler, whatever CC says for the target.
+    for v in ("CC", "CXX", "CFLAGS", "CPPFLAGS", "LDFLAGS"):
+        env.pop(v, None)
+    return env
+
+
 def run_streamed(cmd, env, verbose):
     proc = subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                             text=True, errors="replace")
@@ -363,6 +379,9 @@ def main(argv=None):
     ap.add_argument("--nuitka-path", default=os.environ.get("OPENBSD_NUITKA_PATH"),
                     help="directory to prepend to PYTHONPATH to find Nuitka "
                          "(default: $OPENBSD_NUITKA_PATH)")
+    ap.add_argument("--no-user-site", action="store_true",
+                    help="ignore the host user site-packages (~/.local), so that only "
+                         "--python's own site-packages and PYTHONPATH provide modules")
     ap.add_argument("--keep-build", metavar="DIR", help="build in DIR and keep it")
     ap.add_argument("--no-strip", action="store_true")
     ap.add_argument("-j", "--jobs", type=int, default=os.cpu_count() or 1)
@@ -405,13 +424,7 @@ def main(argv=None):
         elif os.path.isdir(out):
             raise CrossError(f"{out} is a directory")
 
-        env = dict(os.environ)
-        if a.nuitka_path:
-            env["PYTHONPATH"] = os.pathsep.join(
-                p for p in (os.path.abspath(a.nuitka_path), env.get("PYTHONPATH")) if p)
-        # The host build must use the host compiler, whatever CC says for the target.
-        for v in ("CC", "CXX", "CFLAGS", "CPPFLAGS", "LDFLAGS"):
-            env.pop(v, None)
+        env = host_env(os.environ, a.nuitka_path, a.no_user_site)
         r = subprocess.run([a.python, "-c", HOST_PROBE], env=env, capture_output=True, text=True)
         if r.returncode != 0:
             raise CrossError(f"cannot import Nuitka with {a.python}:\n{r.stderr.strip()}")

@@ -93,6 +93,16 @@ class ParseTest(unittest.TestCase):
             with self.assertRaises(nuitka_cross.CrossError):
                 nuitka_cross.check_extra_options([bad])
 
+    def test_host_env(self):
+        base = {"PYTHONPATH": "/app", "CC": "x86_64-unknown-openbsd8.0-cc", "HOME": "/h"}
+        env = nuitka_cross.host_env(base, "/n", False)
+        self.assertEqual(env["PYTHONPATH"], os.pathsep.join(("/n", "/app")))
+        self.assertNotIn("CC", env)
+        self.assertNotIn("PYTHONNOUSERSITE", env)
+        self.assertIn("CC", base)
+        env = nuitka_cross.host_env({}, None, True)
+        self.assertEqual(env, {"PYTHONNOUSERSITE": "1"})
+
     def test_nuitka_command(self):
         cmd = nuitka_cross.nuitka_command("py", "/s/main.py", "/w/host", ["--jobs=2"])
         self.assertEqual(cmd[:3], ["py", "-m", "nuitka"])
