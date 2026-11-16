@@ -42,5 +42,7 @@ pure-Python OpenBSD package creation. Design: docs/ARCHITECTURE.md. Study: docs/
 - Nuitka integration relies on Nuitka internals (plugin patch, `--show-scons` output,
   `@link_input.txt`, `--report` XML, `<module>.so` names in `*.dist`): after bumping Nuitka, rerun
   both Nuitka examples and compare `readelf -lW` with the sysroot's `usr/local/bin/python3.X`.
-- Standalone builds must not embed build-host paths: check with
-  `strings -a <exe> | grep -E '/home/|/tmp/'` (host `_sysconfigdata_*` are excluded for that reason).
+- Nuitka builds (both modes) must not embed build-host paths: check with
+  `{ strings -a <exe>; strings -a -e L <exe>; } | grep -E '/home/|/tmp/|/opt/'` (wide strings
+  too: PYTHONHOME is wchar_t). Host `_sysconfigdata_*` and `PYTHON_HOME_PATH` are dropped for
+  that reason. Test with a uv CPython too (CI's case), not only Debian's `/usr/bin/python3`.

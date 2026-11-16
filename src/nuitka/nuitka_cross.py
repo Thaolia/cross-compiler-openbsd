@@ -46,6 +46,10 @@ TARGET_PREFIX = "/usr/local"
 # Nuitka only adapts the Python headers (and defines this) on Linux and Windows hosts; a native
 # OpenBSD build keeps the stock headers, so the cross build does the same.
 HOST_ONLY_DEFINES = {"_NUITKA_ADAPTED_PYTHON_HEADERS"}
+# Written to build_definitions.h when the host Python is not installed in a system location
+# (uv, python-build-standalone): it would make the program use the host prefix as PYTHONHOME.
+# The official OpenBSD python finds its prefix itself; so does the program without it.
+HOST_ONLY_BUILD_DEFINITIONS = {"PYTHON_HOME_PATH"}
 PY_INCLUDE_RE = re.compile(r"^(.*/include/python3\.\d+[a-z]*)(/.*)?$")
 
 # The program embeds the interpreter and loads the same extension modules as the official
@@ -188,6 +192,21 @@ def parse_compile_line(lines, nuitka_dir, target_include):
                 # anything else (Nuitka's adapted-headers cache) is host-only
         return flags
     raise CrossError("no C compile command found in Nuitka's output (--show-scons)")
+
+
+def drop_host_definitions(source_dir):
+    """Remove the host-only macros from Nuitka's build_definitions.h."""
+    path = os.path.join(source_dir, "build_definitions.h")
+    try:
+        with open(path) as f:
+            lines = f.readlines()
+    except OSError:
+        raise CrossError(f"{path} missing: did the host build run?") from None
+    kept = [l for l in lines
+            if not (l.startswith("#define ") and l.split()[1] in HOST_ONLY_BUILD_DEFINITIONS)]
+    if len(kept) != len(lines):
+        with open(path, "w") as f:
+            f.writelines(kept)
 
 
 def link_sources(source_dir):
@@ -396,6 +415,7 @@ def main(argv=None):
             source_dir = builds[0]
             flags = parse_compile_line(lines, host["nuitka_dir"], target_include)
             sources = link_sources(source_dir)
+            drop_host_definitions(source_dir)
             log(f"cross-compiling {len(sources)} C files for OpenBSD {a.flavor}")
             objs = compile_all(cc, flags, source_dir, os.path.join(work, "openbsd-obj"),
                                sources, a.jobs, a.verbose)

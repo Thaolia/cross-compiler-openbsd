@@ -71,7 +71,11 @@ et charge `libpython3.X.so` et la bibliothèque standard du paquet officiel `pyt
    commande de compilation affichée par `--show-scons` (`-std`, `-D`, `-I` de Nuitka), les `-I`
    Python de l'hôte remplacés par ceux du sysroot. `_NUITKA_ADAPTED_PYTHON_HEADERS` et le cache
    d'en-têtes adaptés sont retirés : Nuitka n'adapte les en-têtes que sous Linux et Windows, un
-   build natif OpenBSD utilise les en-têtes d'origine.
+   build natif OpenBSD utilise les en-têtes d'origine. `PYTHON_HOME_PATH` est retiré de
+   `build_definitions.h` : Nuitka l'y écrit quand le Python hôte n'est pas installé dans un
+   emplacement système (uv, python-build-standalone), et le programme prendrait alors le
+   préfixe de l'hôte comme `PYTHONHOME` (échec « No module named 'encodings' » sur OpenBSD).
+   Sans lui, le programme trouve son préfixe comme le `python3.X` officiel.
 5. Édition de liens : `-lpython3.X -lm` (comme le lien natif de Nuitka), plus `-z wxneeded` / `-z nobtcfi`
    recopiés des program headers de `/usr/local/bin/python3.X` du sysroot (même interpréteur,
    mêmes modules d'extension chargés). Puis `strip`.

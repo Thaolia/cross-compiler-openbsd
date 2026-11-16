@@ -57,6 +57,20 @@ class ParseTest(unittest.TestCase):
             with self.assertRaises(nuitka_cross.CrossError):
                 nuitka_cross.link_sources(d)
 
+    def test_drop_host_definitions(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "build_definitions.h")
+            with open(path, "w") as f:
+                f.write('#define NO_PYTHON_WARNINGS 0\n'
+                        '#define PYTHON_HOME_PATH "/opt/uv/cpython-3.14.7-linux-x86_64-gnu"\n'
+                        '#define SYSFLAG_UTF8 0\n')
+            nuitka_cross.drop_host_definitions(d)
+            with open(path) as f:
+                self.assertEqual(f.read(), "#define NO_PYTHON_WARNINGS 0\n#define SYSFLAG_UTF8 0\n")
+            os.unlink(path)
+            with self.assertRaises(nuitka_cross.CrossError):
+                nuitka_cross.drop_host_definitions(d)
+
     def test_depend_from_plist(self):
         contents = ("@name python-3.14.7p0\n@comment pkgpath=lang/python/3,-main ftp=yes\n"
                     "@arch amd64\n@cwd /usr/local\nbin/python3.14\n")
