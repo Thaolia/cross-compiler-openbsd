@@ -83,7 +83,8 @@ tests/build-example.sh tests/nuitkastandalone 8.0 out mykey-pkg.sec
 - The Python running Nuitka must have **the target's major.minor** (3.14 for 8.0 and -current
   today): set `OPENBSD_NUITKA_PYTHON` (e.g. a `uv python install 3.14` interpreter) and
   `OPENBSD_NUITKA_PATH` if Nuitka is installed with `pip install --target`. Nuitka 4.3.5 is the
-  version checked; it also needs a host C compiler (`gcc`).
+  version checked; it also needs a host C compiler (`gcc`), and `patchelf` for
+  standalone (Nuitka's host build requires it on Linux).
 - Nuitka cannot cross-compile, so it first builds for the host; the generated C is then rebuilt
   with the OpenBSD compiler against the sysroot's Python headers. Local modules are compiled in
   (`--follow-imports`). Accelerated: the standard library comes from the target's python package.

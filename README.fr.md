@@ -73,7 +73,8 @@ tests/build-example.sh tests/nuitkastandalone 8.0 out mykey-pkg.sec
   et -current aujourd'hui) : définir `OPENBSD_NUITKA_PYTHON` (par ex. un interpréteur installé
   par `uv python install 3.14`) et `OPENBSD_NUITKA_PATH` si Nuitka est installé par
   `pip install --target`. Version vérifiée : Nuitka 4.3.5 ; il faut aussi un compilateur C
-  hôte (`gcc`).
+  hôte (`gcc`), et `patchelf` en standalone (exigé par la construction hôte de Nuitka sous
+  Linux).
 - Nuitka ne sait pas faire de compilation croisée : il construit d'abord pour l'hôte, puis le C
   généré est recompilé par le compilateur OpenBSD contre les en-têtes Python du sysroot. Les
   modules locaux sont compilés (`--follow-imports`). En accelerated, la bibliothèque standard

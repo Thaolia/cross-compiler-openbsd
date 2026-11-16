@@ -37,6 +37,8 @@ pure-Python OpenBSD package creation. Design: docs/ARCHITECTURE.md. Study: docs/
   `uv pip install --python /usr/bin/python3 --target build/nuitka/lib nuitka==<ver>`, then
   export `OPENBSD_NUITKA_PATH=$PWD/build/nuitka/lib`. The host Python must match the sysroot
   python package's major.minor (3.14).
+- This host has tools the Docker image lacks (e.g. `patchelf`, which Nuitka standalone needs):
+  any host tool the build uses must also be installed in `docker/Dockerfile`.
 - Nuitka integration relies on Nuitka internals (plugin patch, `--show-scons` output,
   `@link_input.txt`, `--report` XML, `<module>.so` names in `*.dist`): after bumping Nuitka, rerun
   both Nuitka examples and compare `readelf -lW` with the sysroot's `usr/local/bin/python3.X`.

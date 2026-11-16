@@ -28,7 +28,7 @@ RUN echo 'Acquire::Retries "5";' > /etc/apt/apt.conf.d/80-retries \
       clang-${LLVM_VERSION} lld-${LLVM_VERSION} llvm-${LLVM_VERSION} \
       python3 python3-cryptography \
       make cmake meson ninja-build pkgconf file xz-utils patch git \
-      gcc libc6-dev \
+      gcc libc6-dev patchelf \
  && rm -rf /var/lib/apt/lists/*
 
 ENV OPENBSD_LLVM_BIN=/usr/lib/llvm-${LLVM_VERSION}/bin \
